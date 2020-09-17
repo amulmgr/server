@@ -104,3 +104,29 @@ DROP TABLE t1;
 #
 # End of 10.2 test
 #
+#
+# MDEV-17665 Assertion `!share || share->page_type == PAGECACHE_LSN_PAGE',
+# `type != PAGECACHE_READ_UNKNOWN_PAGE' and similar ones upon concurrent
+# Aria operations
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+connect  con1,localhost,root,,test;
+connect  con2,localhost,root,,test;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+connection con1;
+FLUSH TABLES;
+connection default;
+INSERT INTO t1 SELECT 1;
+ERROR 21S01: Column count doesn't match value count at row 1
+connection con2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+disconnect con2;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1;
+#
+# End of 10.4 test
+#

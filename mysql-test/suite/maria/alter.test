@@ -1,6 +1,7 @@
 # Testing of potential problems in Aria and alter table
 
 -- source include/have_maria.inc
+-- source include/have_sequence.inc
 
 drop table if exists t1;
 
@@ -89,4 +90,42 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 test
+--echo #
+
+--echo #
+--echo # MDEV-17665 Assertion `!share || share->page_type == PAGECACHE_LSN_PAGE',
+--echo # `type != PAGECACHE_READ_UNKNOWN_PAGE' and similar ones upon concurrent
+--echo # Aria operations
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+
+--connect (con1,localhost,root,,test)
+--connect (con2,localhost,root,,test)
+--send
+  INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+ 
+--connection con1
+--send
+  FLUSH TABLES;
+ 
+--connection default
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t1 SELECT 1;
+ 
+# Cleanup
+--connection con2
+--error ER_DUP_ENTRY
+--reap
+--disconnect con2
+--connection con1
+--reap
+--disconnect con1
+--connection default
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 test
 --echo #
